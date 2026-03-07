@@ -1,0 +1,16 @@
+services:
+  semantic-firewall:
+    build: .
+    container_name: openbot-firewall
+    privileged: true # Potentially needed for LD_PRELOAD or specific device passing
+    environment:
+      - LD_PRELOAD=/app/interceptor/hook.so
+      - SPLUNK_HEC_URL=http://host.docker.internal:8088/services/collector/event
+      - SPLUNK_HEC_TOKEN=demo_token
+    volumes:
+      - ~/.openclaw:/root/.openclaw # Persist OpenClaw configs to host
+    ports:
+      - "18789:18789" # OpenClaw API
+      - "5005:5000" # Flask Webhook Server
+  # The React Dashboard would usually run independently or hosted on Firebase,
+  # but we can optionally serve it via node if we wanted to package it together.
