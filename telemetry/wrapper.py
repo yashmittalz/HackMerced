@@ -50,6 +50,10 @@ def main():
     with open("/tmp/openclaw.pid", "w") as f:
         f.write(str(os.getpid()))
         
+    # Boot the Flask Webhook Server in the background to listen for Splunk kill switches
+    print("[*] Booting Webhook Listener on port 5005...")
+    subprocess.Popen(["python3", "/app/telemetry/webhook_server.py"])
+        
     # Start the subprocess with LD_PRELOAD injected via the environment
     # Note: LD_PRELOAD should already be in the ENVs passed from the Dockerfile
     process = subprocess.Popen(

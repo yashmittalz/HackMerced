@@ -33,4 +33,4 @@ RUN cd /app/interceptor && make
 
 # 4. Set environment and command to run OpenClaw WRAPPED in our C++ interceptor and Python streamer
 WORKDIR /app
-CMD ["python3", "/app/telemetry/wrapper.py", "node", "/app/openclaw/dist/index.js", "gateway", "--port", "18789"]
+CMD ["python3", "/app/telemetry/wrapper.py", "node", "/app/openclaw/dist/index.js", "gateway", "--port", "18789", "--allow-unconfigured"]

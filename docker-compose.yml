@@ -11,6 +11,6 @@ services:
       - ~/.openclaw:/root/.openclaw # Persist OpenClaw configs to host
     ports:
       - "18789:18789" # OpenClaw API
-      - "5005:5000" # Flask Webhook Server
+      - "5005:5005" # Flask Webhook Server
   # The React Dashboard would usually run independently or hosted on Firebase,
   # but we can optionally serve it via node if we wanted to package it together.

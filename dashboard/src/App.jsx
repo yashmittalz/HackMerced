@@ -1,4 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, onValue } from "firebase/database";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDVDmP-B1pG_oAm1eEWu5vPI8VzLhVSvqg",
+    authDomain: "openclaw-sentinal.firebaseapp.com",
+    databaseURL: "https://openclaw-sentinal-default-rtdb.firebaseio.com",
+    projectId: "openclaw-sentinal",
+    storageBucket: "openclaw-sentinal.firebasestorage.app",
+    messagingSenderId: "923547995511",
+    appId: "1:923547995511:web:17610dc673f99475f16572",
+    measurementId: "G-KG1RB159E4"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 function App() {
     const [threatCount, setThreatCount] = useState(0);
@@ -9,17 +25,20 @@ function App() {
         "Attempting: rm database.sqlite..."
     ]);
 
-    // Dummy hook simulation: In the real app, this watches Firebase Realtime DB
     useEffect(() => {
-        const handleSimulatedThreat = () => {
-            setIsFlashing(true);
-            setThreatCount(c => c + 1);
-            setTimeout(() => setIsFlashing(false), 800);
-        };
+        const threatsRef = ref(db, 'stats/threatsNeutralized');
 
-        // Simulate an intercepted threat every 10 seconds for the demo
-        const interval = setInterval(handleSimulatedThreat, 10000);
-        return () => clearInterval(interval);
+        // Listen for live updates from Firebase
+        onValue(threatsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data !== null) {
+                setThreatCount(data);
+
+                // Flash the screen red when the count goes up
+                setIsFlashing(true);
+                setTimeout(() => setIsFlashing(false), 800);
+            }
+        });
     }, []);
 
     return (
@@ -56,7 +75,7 @@ function App() {
                 <h3>Live AI Telemetry Stream (stdout)</h3>
                 {thoughts.map((thought, i) => (
                     <div key={i} style={{ color: '#00ff00', marginBottom: '0.5rem' }}>
-            > {thought}
+                        {">"} {thought}
                     </div>
                 ))}
             </div>

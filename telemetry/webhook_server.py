@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 import subprocess
 import os
+import requests
 
 app = Flask(__name__)
 
@@ -19,20 +20,41 @@ def handle_alert():
         with open("/tmp/openclaw.pid", "r") as f:
             target_pid = f.read().strip()
             
-        print(f"[*] Routing termination order for PID: {target_pid} to C++ MLFQ Handler...")
-        
-        # Call the blazing fast C++ binary to execute the Kill/Rollback sequence
-        subprocess.run([HANDLER_BIN, target_pid])
-        
-        # Extra points: You would typically shoot a pulse to Firebase here for the React UI
-        # e.g., requests.post("https://your-firebase-db.firebaseio.com/incidents.json", json={"status": "neutralized"})
-        
-        return jsonify({"status": "intercepted_and_neutralized", "pid": target_pid}), 200
+        if not target_pid:
+            print("No PID specified in the alert, nothing to kill.")
+            return jsonify({"status": "ignored", "reason": "no pid"}), 200
+
+        # Execute the C++ MLFQ Handler to kill the rogue process AND trigger rollback
+        try:
+            print(f"[*] Splunk Triggered Kill Switch for Rogue PID: {target_pid}")
+            # Call Yash's C++ handler synchronously
+            subprocess.run([HANDLER_BIN, str(target_pid)], check=True)
+            
+            # Increment the Threat Counter on the React Dashboard via Firebase
+            firebase_url = "https://openclaw-sentinal-default-rtdb.firebaseio.com/stats/threatsNeutralized.json"
+            
+            try:
+                # Get current count
+                resp = requests.get(firebase_url)
+                current_count = resp.json() if resp.text != 'null' else 0
+                if current_count is None:
+                    current_count = 0
+                
+                # Update count
+                requests.put(firebase_url, json=current_count + 1)
+                print(f"[*] Updated Firebase Threat Count to: {current_count + 1}")
+            except Exception as e:
+                print(f"[!] Failed to update Firebase UI: {e}")
+
+            return jsonify({"status": "success", "action": "mlfq_handler_invoked"}), 200
+
+        except subprocess.CalledProcessError as e:
+            print(f"[!] MLFQ Handler failed execution: {e}")
+            return jsonify({"status": "error", "reason": "mlfq_handler_failed"}), 500
         
     except FileNotFoundError:
         return jsonify({"error": "No active Agent PID found."}), 404
 
 if __name__ == '__main__':
-    # Listen on all interfaces so the Docker container can expose port 5000 
-    # and receive Ngrok/Tailscale tunnels returning from Splunk Cloud.
-    app.run(host='0.0.0.0', port=5000)
+    # Run heavily isolated on a non-standard port so it doesn't conflict with Mac AirPlay receiver
+    app.run(host='0.0.0.0', port=5005)
