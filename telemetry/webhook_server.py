@@ -15,9 +15,12 @@ def handle_alert():
     print(f"[*] ALARM: Received Webhook from Splunk Edge Pipeline.")
     print(f"[*] Payload: {data}")
     
+    import tempfile
+    pid_file = os.path.join(tempfile.gettempdir(), "openclaw.pid")
+    
     # We retrieve the PID of the OpenClaw wrapper we saved earlier
     try:
-        with open("/tmp/openclaw.pid", "r") as f:
+        with open(pid_file, "r") as f:
             target_pid = f.read().strip()
             
         if not target_pid:

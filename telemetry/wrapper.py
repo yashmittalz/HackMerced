@@ -8,8 +8,8 @@ import urllib.parse
 from datetime import datetime
 
 # Splunk Cloud HTTP Event Collector (HEC) Configuration
-SPLUNK_HEC_URL = os.environ.get("SPLUNK_HEC_URL", "https://your-splunk-cloud.com:8088/services/collector/event")
-SPLUNK_HEC_TOKEN = os.environ.get("SPLUNK_HEC_TOKEN", "YOUR_SPLUNK_TOKEN")
+SPLUNK_HEC_URL = os.environ.get("SPLUNK_HEC_URL", "https://http-inputs-prd-p-vkh7t.splunkcloud.com/services/collector/event")
+SPLUNK_HEC_TOKEN = os.environ.get("SPLUNK_HEC_TOKEN", "6f0b0636-8da4-478c-a4a6-7c5d800127cd")
 
 def send_to_splunk(log_line):
     """Chunks the stdout and fires it to Splunk HEC over Wi-Fi"""
@@ -46,8 +46,11 @@ def main():
     command = sys.argv[1:]
     print(f"[*] Starting Semantic Firewall Telemetry Wrapper around: {' '.join(command)}")
     
+    import tempfile
+    
+    pid_file = os.path.join(tempfile.gettempdir(), "openclaw.pid")
     # Save our own PID to a file so the webhook listener knows what to kill
-    with open("/tmp/openclaw.pid", "w") as f:
+    with open(pid_file, "w") as f:
         f.write(str(os.getpid()))
         
     # Boot the Flask Webhook Server in the background to listen for Splunk kill switches
