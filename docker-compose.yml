@@ -5,8 +5,8 @@ services:
     privileged: true # Potentially needed for LD_PRELOAD or specific device passing
     environment:
       - LD_PRELOAD=/app/interceptor/hook.so
-      - SPLUNK_HEC_URL=http://host.docker.internal:8088/services/collector/event
-      - SPLUNK_HEC_TOKEN=demo_token
+      - SPLUNK_HEC_URL=https://http-inputs-prd-p-vkh7t.splunkcloud.com/services/collector/event
+      - SPLUNK_HEC_TOKEN=0290899f-ecea-44a1-84a8-567e17c64d38
     volumes:
       - ~/.openclaw:/root/.openclaw # Persist OpenClaw configs to host
     ports:

@@ -55,23 +55,30 @@ def main():
         
     # Boot the Flask Webhook Server in the background to listen for Splunk kill switches
     print("[*] Booting Webhook Listener on port 5005...")
-    subprocess.Popen(["python3", "/app/telemetry/webhook_server.py"])
+    webhook_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webhook_server.py")
+    subprocess.Popen([sys.executable if sys.executable else "python", webhook_script])
         
     # Start the subprocess with LD_PRELOAD injected via the environment
     # Note: LD_PRELOAD should already be in the ENVs passed from the Dockerfile
+    
+    # On Windows, we need to pass the arguments as a flat string if shell=True is used,
+    # or keep it as a list but allow `subprocess` to find the executable.
+    cmd_to_run = command if os.name != 'nt' else " ".join(command)
     process = subprocess.Popen(
-        command,
+        cmd_to_run,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        shell=(os.name == 'nt')
     )
     
     # Continuously read and tee the output
-    for line in iter(process.stdout.readline, ''):
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        send_to_splunk(line)
+    if process.stdout:
+        for line in iter(process.stdout.readline, ''):
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            send_to_splunk(line)
         
     process.wait()
 
