@@ -140,5 +140,4 @@ if (echo > /dev/tcp/localhost/18791) 2>/dev/null; then
   echo ""
 fi
 
-# Keep this entrypoint alive until OpenClaw exits (acts as PID 1)
 wait $OPENCLAW_PID
