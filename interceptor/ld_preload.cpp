@@ -28,7 +28,6 @@ static void firewall_init() {
 static void push_telemetry_to_firebase(const char *message) {
   pid_t pid = fork();
   if (pid == 0) {
-    // Child process: use curl to POST the event to Firebase
     char payload[2048];
     snprintf(payload, sizeof(payload),
              "{\"message\": \"%s\", \"source\": \"ld_preload\"}",
@@ -37,10 +36,29 @@ static void push_telemetry_to_firebase(const char *message) {
            FIREBASE_TELEMETRY_URL,
            "-H", "Content-Type: application/json",
            "-d", payload, NULL);
-    _exit(0); // Only reached if execlp fails
+    _exit(0);
   } else if (pid > 0) {
-    // Parent: don't wait — we need to be non-blocking (O(1) intercept stays fast)
-    signal(SIGCHLD, SIG_IGN); // Prevent zombie processes
+    signal(SIGCHLD, SIG_IGN);
+  }
+}
+
+// Increment quarantine count in Firebase
+static void increment_quarantine_stat() {
+  pid_t pid = fork();
+  if (pid == 0) {
+    // Note: This is an over-simplification for the hackathon. 
+    // In a real app, we'd use a server-side increment or a dedicated service.
+    // Here we'll just trigger a "pulse" or similar if we can't easily GET/PUT in C.
+    // However, Firebase REST supports "increment" via patches in some versions, 
+    // but for simplicity, we'll just POST an event that the dashboard can sum up or we'll handle it in the webhook server.
+    // Actually, let's just POST to a 'quarantine_events' node.
+    execlp("curl", "curl", "-s", "-X", "POST",
+           "https://openclaw-sentinal-default-rtdb.firebaseio.com/stats/quarantine_events.json",
+           "-H", "Content-Type: application/json",
+           "-d", "{\"timestamp\": 1}", NULL);
+    _exit(0);
+  } else if (pid > 0) {
+    signal(SIGCHLD, SIG_IGN);
   }
 }
 
@@ -113,6 +131,7 @@ int unlink(const char *pathname) {
     char msg[512];
     snprintf(msg, sizeof(msg), "[INTERCEPTED] unlink('%s') redirected to quarantine", pathname);
     push_telemetry_to_firebase(msg);
+    increment_quarantine_stat();
     printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n", pathname);
     return 0;
   }
@@ -140,6 +159,7 @@ int remove(const char *pathname) {
     char msg[512];
     snprintf(msg, sizeof(msg), "[INTERCEPTED] remove('%s') redirected to quarantine", pathname);
     push_telemetry_to_firebase(msg);
+    increment_quarantine_stat();
     printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n", pathname);
     return 0;
   }

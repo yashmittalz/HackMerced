@@ -35,6 +35,22 @@ def send_to_ml_analyzer(log_line, pid):
         # Failsafe: if telemetry fails, do not crash the wrapper
         pass
 
+def increment_telemetry_stat():
+    """Increments the total_telemetry counter in Firebase"""
+    try:
+        # For simplicity in the wrapper, we just POST a dummy event that we'll sum up
+        # or we could use a PATCH if we had the full URL. 
+        # Let's use the same 'events' pattern as quarantine.
+        url = "https://openclaw-sentinal-default-rtdb.firebaseio.com/stats/telemetry_events.json"
+        req = urllib.request.Request(
+            url, 
+            data=json.dumps({"ts": datetime.now().timestamp()}).encode('utf-8'),
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=0.5)
+    except Exception:
+        pass
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: wrapper.py <command_to_wrap>")
@@ -90,6 +106,7 @@ def main():
             sys.stdout.write(line)
             sys.stdout.flush()
             send_to_ml_analyzer(line, openclaw_pid)
+            increment_telemetry_stat()
         
     process.wait()
 

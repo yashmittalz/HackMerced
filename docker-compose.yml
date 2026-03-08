@@ -5,11 +5,8 @@ services:
     privileged: true # Required for LD_PRELOAD hook injection
     stdin_open: true # Keep stdin open for OpenClaw onboarding wizard
     tty: true # Allocate a TTY so interactive prompts render correctly
-    environment:
-      - SPLUNK_HEC_URL=https://prd-p-vkh7t.splunkcloud.com:8088/services/collector/event
-      - SPLUNK_HEC_TOKEN=0290899f-ecea-44a1-84a8-567e17c64d38
-      - GEMINI_API_KEY=AIzaSyDQe-1NYK5aho5i1uIdiY0kNchVWR59Boo
-      - GOOGLE_API_KEY=AIzaSyDQe-1NYK5aho5i1uIdiY0kNchVWR59Boo
+    env_file:
+      - .env
     volumes:
       - ~/.openclaw:/root/.openclaw # Persist OpenClaw config to host after onboarding
       - ./telemetry:/app/telemetry # Hot-reload python scripts without rebuild
