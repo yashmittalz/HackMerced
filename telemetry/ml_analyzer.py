@@ -16,14 +16,16 @@ analyzer = SentimentIntensityAnalyzer()
 
 # Where to send the assigned priority 
 WEBHOOK_URL = "http://localhost:5005/splunk-alert"
+FIREBASE_DB_URL = os.environ.get("FIREBASE_DATABASE_URL", "https://openclaw-sentinal-default-rtdb.firebaseio.com")
 
 def calculate_mlfq_priority(log_text):
     """
     Analyzes the semantic threat level of a log and assigns an MLFQ Priority Queue.
-    Priority 0: Extremely Malicious (Immediate Kill & Rollback) [ActionType 0]
+     Priority 0: Extremely Malicious (Immediate Kill & Rollback) [ActionType 0]
     Priority 1: Suspicious (Throttle / Sandbox) [ActionType 2]
     Priority 2: Monitor (Normal Queue) [ActionType 3]
     Priority 3: Safe (Background Queue) [No Action]
+    Returns: (mlfq_priority, action_type, compound_score)
     """
     # ─── OpenClaw Internal Subsystem Whitelist ───────────────────────────────
     # Known internal OpenClaw systems & false positive patterns
@@ -39,11 +41,11 @@ def calculate_mlfq_priority(log_text):
     lower_text = log_text.lower()
     for safe_pattern in whitelisted_patterns:
         if safe_pattern in lower_text:
-            return 3, -1  # Whitelisted internal log — never alert
+            return 3, -1, 1.0  # Whitelisted internal log — never alert, safe compound
 
     # Force certain keywords to trigger hardcoded malicious analysis for demo
     if "malicious" in lower_text or "rogue" in lower_text:
-        return 0, 0
+        return 0, 0, -1.0
         
     # Run the VADER NLP Sentiment Analyzer on the raw text
     # The compound score is bounded between -1 (extreme negative) and +1 (extreme positive)
@@ -53,13 +55,22 @@ def calculate_mlfq_priority(log_text):
     # Map the sentiment distribution to MLFQ Priority Queues and Dispatch Actions
     if compound <= -0.5:
         # Heavily negative semantics — treat as critical threat
-        return 0, 0 # Priority 0, Action 0 (Neutralize)
+        return 0, 0, compound # Priority 0, Action 0 (Neutralize)
     elif -0.5 < compound <= -0.1:
         # Mildly negative semantics — suspicious
-        return 1, 2 # Priority 1, Action 2 (Throttle)
+        return 1, 2, compound # Priority 1, Action 2 (Throttle)
     else:
         # Neutral or positive — safe, no action taken
-        return 3, -1 # Safe, no action
+        return 3, -1, compound # Safe, no action
+
+def update_firebase_hostility(compound_score):
+    """Converts the VADER compound score (-1.0 to 1.0) to a hostility index 0 to 100"""
+    try:
+        # -1.0 becomes 100, 1.0 becomes 0
+        hostility_index = int(((-compound_score + 1) / 2) * 100)
+        requests.patch(f"{FIREBASE_DB_URL}/stats.json", json={"hostility_index": hostility_index}, timeout=1)
+    except Exception as e:
+        print(f"[!] Failed to update Firebase Hostility Index: {e}")
 
 @app.route('/analyze', methods=['POST'])
 def analyze_log():
@@ -73,8 +84,11 @@ def analyze_log():
     print(f"\n[AI] Analyzing Telemetry: {log_message}")
     
     # 1. Classify the threat level using NLP
-    mlfq_priority, action_type = calculate_mlfq_priority(log_message)
+    mlfq_priority, action_type, compound_score = calculate_mlfq_priority(log_message)
     print(f"[AI] Assigned MLFQ Priority: {mlfq_priority}, ActionType: {action_type}")
+    
+    # Update Firebase UI stats with calculated index
+    update_firebase_hostility(compound_score)
     
     # 2. If it is suspicious/malicious (-1 means safe), forward it to the C++ Handler Webhook
     if action_type != -1:
