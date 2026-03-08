@@ -130,6 +130,19 @@ def handle_alert():
             )
             latency_ms = int((time.time() - start_time) * 1000)
             
+            # 3.5 Broadcast MLFQ C++ stdout to Firebase for Web UI live terminal
+            if result.stdout:
+                print(f"[+] Relaying MLFQ Stdout to Live Trace...")
+                try:
+                    logs = result.stdout.strip().split('\n')
+                    requests.post(f"{FIREBASE_DB_URL}/mlfq_live_trace.json", json={
+                        "timestamp": time.time(),
+                        "pid": rogue_pid,
+                        "logs": logs
+                    })
+                except Exception as e:
+                    print(f"[!] Failed to push MLFQ trace: {e}")
+            
             # Update Dashboard Status
             try:
                 # Update threat count and latency stats

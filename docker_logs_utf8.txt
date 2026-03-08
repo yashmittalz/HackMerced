@@ -1,0 +1,133 @@
+﻿
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ       OpenBot Semantic Firewall Starting...      Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+[1/3] Starting ML Threat Analyzer (port 5006)...
+[*] Waiting for ML Threat Analyzer to be ready on port 5006...
+[*] Local ML Threat Analyzer Online (Port 5006)
+ * Serving Flask app 'ml_analyzer'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5006
+ * Running on http://172.19.0.2:5006
+[33mPress CTRL+C to quit[0m
+[+] ML Threat Analyzer is UP on port 5006.
+[2/3] Starting Webhook Server (port 5005)...
+[*] Waiting for Webhook Server to be ready on port 5005...
+ * Serving Flask app 'webhook_server'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5005
+ * Running on http://172.19.0.2:5005
+[33mPress CTRL+C to quit[0m
+[+] Webhook Server is UP on port 5005.
+
+[+] OpenClaw config found at /root/.openclaw ΓÇö skipping onboarding.
+
+[3/3] Handing off to OpenClaw via Telemetry Wrapper...
+      All stdout is being intercepted by the Semantic Firewall.
+
+[*] Waiting for OpenClaw gateway on 127.0.0.1:18789...
+[*] Starting Semantic Firewall Telemetry Wrapper around: node /app/openclaw/dist/index.js gateway --port 18789 --allow-unconfigured
+[*] Webhook Listener on port 5005 already running (started by entrypoint.sh).
+[SECURITY FIREWALL] OS Interceptor loaded. Quarantine directory ready.
+
+[AI] Analyzing Telemetry: [SECURITY FIREWALL] OS Interceptor loaded. Quarantine directory ready.
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:43] "POST /analyze HTTP/1.1" 200 -
+(node:23) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+
+[AI] Analyzing Telemetry: (node:23) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:46] "POST /analyze HTTP/1.1" 200 -
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[AI] Analyzing Telemetry: (Use `node --trace-deprecation ...` to show where the warning was created)
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:47] "POST /analyze HTTP/1.1" 200 -
+[+] OpenClaw gateway UP on 18789.
+[*] Starting socat bridge: 0.0.0.0:18790 ΓåÆ 127.0.0.1:18789
+[*] Waiting for OpenClaw browser server on 127.0.0.1:18791...
+[90m2026-03-08T11:40:46.648+00:00[39m [36m[gateway][39m [33mauth mode=none explicitly configured; all gateway connections are unauthenticated.[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:46.648+00:00[39m [36m[gateway][39m [33mauth mode=none explicitly configured; all gateway connections are unauthenticated.[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:47] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.355+00:00[39m [35m[canvas][39m [36mhost mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root /root/.openclaw/canvas)[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.355+00:00[39m [35m[canvas][39m [36mhost mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root /root/.openclaw/canvas)[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:48] "POST /analyze HTTP/1.1" 200 -
+[+] OpenClaw browser server UP on 18791.
+[*] Starting socat bridge: 0.0.0.0:18800 ΓåÆ 127.0.0.1:18791
+[90m2026-03-08T11:40:47.466+00:00[39m [36m[heartbeat][39m [36mstarted[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.466+00:00[39m [36m[heartbeat][39m [36mstarted[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:48] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.478+00:00[39m [32m[health-monitor][39m [36mstarted (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.478+00:00[39m [32m[health-monitor][39m [36mstarted (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:49] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.489+00:00[39m [36m[gateway][39m [36magent model: openrouter/openrouter/auto[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.489+00:00[39m [36m[gateway][39m [36magent model: openrouter/openrouter/auto[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ  OpenClaw is READY                                           Γòæ
+Γòæ                                                              Γòæ
+Γòæ  Control UI: http://localhost:18789/                         Γòæ
+Γòæ  (Auth is disabled so browser can access it directly)        Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+127.0.0.1 - - [08/Mar/2026 11:40:49] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.495+00:00[39m [36m[gateway][39m [36mlistening on ws://127.0.0.1:18789, ws://[::1]:18789 (PID 23)[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.495+00:00[39m [36m[gateway][39m [36mlistening on ws://127.0.0.1:18789, ws://[::1]:18789 (PID 23)[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:49] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.505+00:00[39m [36m[gateway][39m [36mlog file: /tmp/openclaw/openclaw-2026-03-08.log[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.505+00:00[39m [36m[gateway][39m [36mlog file: /tmp/openclaw/openclaw-2026-03-08.log[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:50] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.510+00:00[39m [36m[gateway][39m [33msecurity warning: dangerous config flags enabled: gateway.controlUi.allowInsecureAuth=true, gateway.controlUi.dangerouslyDisableDeviceAuth=true. Run `openclaw security audit`.[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.510+00:00[39m [36m[gateway][39m [33msecurity warning: dangerous config flags enabled: gateway.controlUi.allowInsecureAuth=true, gateway.controlUi.dangerouslyDisableDeviceAuth=true. Run `openclaw security audit`.[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:50] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.562+00:00[39m [36m[browser/server][39m [33mChrome extension relay init failed for profile "chrome": Error: extension relay requires gateway auth token (set gateway.auth.token or OPENCLAW_GATEWAY_TOKEN)[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.562+00:00[39m [36m[browser/server][39m [33mChrome extension relay init failed for profile "chrome": Error: extension relay requires gateway auth token (set gateway.auth.token or OPENCLAW_GATEWAY_TOKEN)[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:51] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:47.568+00:00[39m [36m[browser/server][39m [36mBrowser control listening on http://127.0.0.1:18791/ (auth=off)[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:47.568+00:00[39m [36m[browser/server][39m [36mBrowser control listening on http://127.0.0.1:18791/ (auth=off)[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:51] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:49.239+00:00[39m [36m[ws][39m [36mwebchat connected conn=32dbd8b4-2d55-4141-b783-9c56f9984aa5 remote=127.0.0.1 client=openclaw-control-ui webchat v2026.3.7[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:49.239+00:00[39m [36m[ws][39m [36mwebchat connected conn=32dbd8b4-2d55-4141-b783-9c56f9984aa5 remote=127.0.0.1 client=openclaw-control-ui webchat v2026.3.7[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:52] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:49.329+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô node.list 63ms conn=32dbd8b4ΓÇª4aa5 id=c85dd400ΓÇªeb00[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:49.329+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô node.list 63ms conn=32dbd8b4ΓÇª4aa5 id=c85dd400ΓÇªeb00[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:52] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:49.337+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô device.pair.list 71ms conn=32dbd8b4ΓÇª4aa5 id=656a4dbeΓÇªe880[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:49.337+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô device.pair.list 71ms conn=32dbd8b4ΓÇª4aa5 id=656a4dbeΓÇªe880[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:53] "POST /analyze HTTP/1.1" 200 -
+[90m2026-03-08T11:40:49.405+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô chat.history 138ms conn=32dbd8b4ΓÇª4aa5 id=60bc6528ΓÇª35ed[39m
+
+[AI] Analyzing Telemetry: [90m2026-03-08T11:40:49.405+00:00[39m [36m[ws][39m [36mΓçä res Γ£ô chat.history 138ms conn=32dbd8b4ΓÇª4aa5 id=60bc6528ΓÇª35ed[39m
+[AI] Assigned MLFQ Priority: 3, ActionType: -1
+127.0.0.1 - - [08/Mar/2026 11:40:53] "POST /analyze HTTP/1.1" 200 -

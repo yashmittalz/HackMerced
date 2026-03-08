@@ -43,11 +43,13 @@ function App() {
     const [history, setHistory] = useState([]);
     const [expandedThreat, setExpandedThreat] = useState(null);
     const [isFlashing, setIsFlashing] = useState(false);
+    const [mlfqTrace, setMlfqTrace] = useState(null);
 
     useEffect(() => {
         const statsRef = ref(db, 'stats');
         const activeRef = ref(db, 'active_threats');
         const historyRef = query(ref(db, 'threat_history'), limitToLast(50));
+        const traceRef = ref(db, 'mlfq_live_trace');
 
         onValue(statsRef, (snapshot) => {
             const data = snapshot.val();
@@ -73,6 +75,10 @@ function App() {
                 })).reverse();
                 setHistory(list);
             }
+        });
+
+        onValue(traceRef, (snapshot) => {
+            setMlfqTrace(snapshot.val());
         });
     }, [stats.threatsNeutralized]);
 
@@ -133,6 +139,13 @@ function App() {
                     0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
                     70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
                     100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                }
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0; }
+                }
+                @keyframes fadeIn {
+                    to { opacity: 1; }
                 }
                 .drill-down {
                     background: rgba(0, 0, 0, 0.3);
@@ -266,6 +279,46 @@ function App() {
                             {[...Array(30)].map((_, i) => (
                                 <div key={i} style={{ flex: 1, height: `${Math.random() * 100}%`, background: '#3b82f6', opacity: 0.4 }} />
                             ))}
+                        </div>
+                    </div>
+                    <div className="soc-card" style={{ borderLeft: '4px solid #f97316' }}>
+                        <div className="label">Live Threat Mitigation Terminal</div>
+                        <div style={{
+                            marginTop: '1rem',
+                            background: '#000',
+                            padding: '1rem',
+                            borderRadius: '6px',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '0.75rem',
+                            minHeight: '200px',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            boxShadow: 'inset 0 0 10px rgba(0,255,0,0.1)'
+                        }}>
+                            {mlfqTrace && mlfqTrace.logs ? (
+                                <div>
+                                    <div style={{ color: '#64748b', marginBottom: '0.5rem', fontSize: '0.65rem' }}>
+                                        {`// LAST TRACE (${new Date(mlfqTrace.timestamp * 1000).toLocaleTimeString()}) - PID: ${mlfqTrace.pid}`}
+                                    </div>
+                                    {mlfqTrace.logs.map((logLine, idx) => {
+                                        let color = '#22c55e'; // default green
+                                        if (logLine.includes('O(1) DISPATCH')) color = '#f97316';
+                                        if (logLine.includes('CRITICAL')) color = '#ef4444';
+                                        if (logLine.includes('Popped')) color = '#3b82f6';
+                                        
+                                        return (
+                                            <div key={idx} style={{ color: color, marginBottom: '4px', opacity: 0, animation: `fadeIn 0.1s forwards ${idx * 0.1}s` }}>
+                                                {`> ${logLine}`}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ color: '#22c55e', opacity: 0.7 }}>
+                                    {'> WAITING FOR MLFQ DISPATCH SIGNAL...'}
+                                    <span style={{ animation: 'blink 1s infinite' }}>_</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

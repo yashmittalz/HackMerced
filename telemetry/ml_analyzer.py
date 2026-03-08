@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import requests
 import json
 import os
+import time
 
 try:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -30,13 +31,26 @@ def calculate_mlfq_priority(log_text):
     # ─── OpenClaw Internal Subsystem Whitelist ───────────────────────────────
     # Known internal OpenClaw systems & false positive patterns
     whitelisted_patterns = [
+        # OpenClaw specifics
         "[gateway]", "[browser/server]", "[canvas]", "[heartbeat]",
-        "[health-monitor]", "control ui", "deprecationwarning",
-        "OS Interceptor loaded", "[SECURITY FIREWALL]", "agent model",
-        "listening on ws", "log file", "auth mode", "security warning",
-        "Chrome extension relay init failed", "Browser control listening",
-        "OpenClaw is READY", "[ws]", "[diagnostic]", "Model context window",
-        "Embedded agent failed"
+        "[health-monitor]", "control ui", "os interceptor loaded",
+        "[security firewall]", "agent model", "listening on ws",
+        "log file", "auth mode", "security warning",
+        "chrome extension relay init failed", "browser control listening",
+        "openclaw is ready", "[ws]", "[diagnostic]", "model context window",
+        "embedded agent failed",
+        
+        # Node.js and Package Manager noise
+        "deprecationwarning", "trace-deprecation", "the warning was created",
+        "(node:", "npm info", "npm warn", "experimental warning",
+        "npm err!", "webpack compiled", "vite v", "ready in",
+        "local:   http", "network: use --host", "press h to show help",
+        
+        # Docker and generic system startup noise
+        "starting", "waiting for", "online", "serving flask app",
+        "debug mode: off", "warning: this is a development server",
+        "running on", "press ctrl+c to quit", "is up on port",
+        "skipping onboarding", "handing off to", "all stdout is being intercepted"
     ]
     lower_text = log_text.lower()
     for safe_pattern in whitelisted_patterns:
@@ -63,14 +77,90 @@ def calculate_mlfq_priority(log_text):
         # Neutral or positive — safe, no action taken
         return 3, -1, compound # Safe, no action
 
+# Startup grace: don't attempt Firebase for the first 5 seconds while Docker DNS initializes
+last_firebase_update = time.time() + 5
+
 def update_firebase_hostility(compound_score):
     """Converts the VADER compound score (-1.0 to 1.0) to a hostility index 0 to 100"""
+    global last_firebase_update
+    
+    # Skip entirely for safe/whitelisted logs (compound == 1.0 means hostility_index == 0)
+    if compound_score == 1.0:
+        return
+    
     try:
         # -1.0 becomes 100, 1.0 becomes 0
         hostility_index = int(((-compound_score + 1) / 2) * 100)
-        requests.patch(f"{FIREBASE_DB_URL}/stats.json", json={"hostility_index": hostility_index}, timeout=1)
+        
+        current_time = time.time()
+        # Rate limit: update at most once per second, BUT bypass immediately on high threats
+        is_threat = hostility_index > 50
+        cooldown_elapsed = (current_time - last_firebase_update) > 1.0
+        
+        if is_threat or cooldown_elapsed:
+            requests.patch(f"{FIREBASE_DB_URL}/stats.json", json={"hostility_index": hostility_index}, timeout=3)
+            last_firebase_update = current_time
+    except requests.exceptions.ConnectionError:
+        print(f"[!] Docker DNS Warning: Firebase unreachable, will retry on next log.")
+    except requests.exceptions.Timeout:
+        print(f"[!] Firebase Timeout: Skipping this update.")
     except Exception as e:
-        print(f"[!] Failed to update Firebase Hostility Index: {e}")
+        print(f"[!] General Firebase error: {e}")
+
+def post_threat_to_firebase(log_message, mlfq_priority, action_type, pid):
+    """
+    Writes a properly structured threat record to Firebase for the App.jsx dashboard.
+    Writes to both threat_history (persistent) and active_threats (live ticker).
+    """
+    try:
+        threat_level = "CRITICAL" if mlfq_priority == 0 else "HIGH"
+        action_map = {0: "Process SIGKILL & File Restored", 1: "System Rollback Triggered", 2: "Network Throttled", 3: "Violation Logged"}
+        action_taken = action_map.get(action_type, "NLP Flag")
+        
+        # Truncate message for display — long log lines are noisy in the UI
+        display_message = (log_message[:120] + "...") if len(log_message) > 120 else log_message
+        
+        threat_record = {
+            "pid_killed": pid,
+            "threat_level": threat_level,
+            "action_taken": action_taken,
+            "agent_thought": display_message,
+            "vector": "NLP Semantic Analysis",
+            "timestamp": time.time(),
+            "status": "active",
+            "mlfq_priority": mlfq_priority
+        }
+        
+        # 1. Write to persistent threat history
+        requests.post(f"{FIREBASE_DB_URL}/threat_history.json", json=threat_record, timeout=3)
+        
+        # 2. Write to active threats (live dashboard ticker)
+        resp = requests.post(f"{FIREBASE_DB_URL}/active_threats.json", json=threat_record, timeout=3)
+        active_key = resp.json().get('name') if resp.ok else None
+        
+        # 3. Increment threat counter in stats
+        resp = requests.get(f"{FIREBASE_DB_URL}/stats/threatsNeutralized.json", timeout=2)
+        current = resp.json() if resp.ok and resp.text != 'null' else 0
+        requests.patch(f"{FIREBASE_DB_URL}/stats.json", json={
+            "threatsNeutralized": (current or 0) + 1,
+            "total_received": (current or 0) + 1
+        }, timeout=2)
+        
+        # 4. Auto-delete from active_threats after 5 seconds (like webhook_server does)
+        if active_key:
+            def _cleanup():
+                import time as _time; _time.sleep(5)
+                try:
+                    requests.delete(f"{FIREBASE_DB_URL}/active_threats/{active_key}.json", timeout=2)
+                except Exception:
+                    pass
+            import threading
+            threading.Thread(target=_cleanup, daemon=True).start()
+            
+    except requests.exceptions.ConnectionError:
+        print(f"[!] Firebase Threat Post: DNS failure, skipping.")
+    except Exception as e:
+        print(f"[!] Failed to post threat to Firebase: {e}")
 
 @app.route('/analyze', methods=['POST'])
 def analyze_log():
@@ -94,10 +184,10 @@ def analyze_log():
     if action_type != -1:
         print(f"[!] Threat Detected! Forwarding PID to MLFQ Webhook Server... (Priority {mlfq_priority})")
         
-        # We assume the wrapper embedded the PID of the process in the message, 
-        # or the wrapper itself sends it alongside the message.
-        # For this architecture, we tell the webhook the PID (falling back to a dummy if missing)
         target_pid = event_data.get('pid', '1234')
+        
+        # Post a structured threat record to Firebase for the dashboard
+        post_threat_to_firebase(log_message, mlfq_priority, action_type, target_pid)
         
         payload = {
             "source": "Local_ML_Analyzer",
