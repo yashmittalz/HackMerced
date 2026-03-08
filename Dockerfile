@@ -37,7 +37,9 @@ RUN chmod +x /app/entrypoint.sh
 
 WORKDIR /app
 
-# entrypoint.sh handles ordered startup:
+
+CMD ["python3", "/app/telemetry/wrapper.py", "node", "/app/openclaw/dist/index.js", "gateway", "--port", "18789", "--allow-unconfigured"]
+# line before added back from before the sour problem  entrypoint.sh handles ordered startup:
 #   1. ML Analyzer (:5006) + health check
 #   2. Webhook Server (:5005) + health check
 #   3. First-run detection → OpenClaw onboarding or direct boot
