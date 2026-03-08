@@ -2,15 +2,20 @@ services:
   semantic-firewall:
     build: .
     container_name: openbot-firewall
-    privileged: true # Potentially needed for LD_PRELOAD or specific device passing
+    privileged: true          # Required for LD_PRELOAD hook injection
+    stdin_open: true          # Keep stdin open for OpenClaw onboarding wizard
+    tty: true                 # Allocate a TTY so interactive prompts render correctly
     environment:
       - LD_PRELOAD=/app/interceptor/hook.so
-      - SPLUNK_HEC_URL=https://http-inputs-prd-p-vkh7t.splunkcloud.com/services/collector/event
-      - SPLUNK_HEC_TOKEN=0290899f-ecea-44a1-84a8-567e17c64d38
     volumes:
-      - ~/.openclaw:/root/.openclaw # Persist OpenClaw configs to host
+      - ~/.openclaw:/root/.openclaw  # Persist OpenClaw config to host after onboarding
+      - ./telemetry:/app/telemetry   # Hot-reload python scripts without rebuild
     ports:
-      - "18789:18789" # OpenClaw API
-      - "5005:5005" # Flask Webhook Server
-  # The React Dashboard would usually run independently or hosted on Firebase,
-  # but we can optionally serve it via node if we wanted to package it together.
+      - "18789:18789"  # OpenClaw WebSocket Gateway   (host → container)
+      - "18791:18791"  # OpenClaw Browser Control UI  (host → container) ← open this in browser
+      - "5005:5005"    # Webhook Server               (host → container)
+      - "5006:5006"    # ML Threat Analyzer           (host → container)
+    # NOTE: Container cannot reach host ports by default.
+    # This creates the VM-like asymmetric trust boundary:
+    #   Host  →  Container : open (via the above published ports)
+    #   Container → Host   : blocked unless host explicitly forwards a socket

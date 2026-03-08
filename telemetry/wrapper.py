@@ -7,29 +7,26 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-# Splunk Cloud HTTP Event Collector (HEC) Configuration
-SPLUNK_HEC_URL = os.environ.get("SPLUNK_HEC_URL", "https://http-inputs-prd-p-vkh7t.splunkcloud.com/services/collector/event")
-SPLUNK_HEC_TOKEN = os.environ.get("SPLUNK_HEC_TOKEN", "6f0b0636-8da4-478c-a4a6-7c5d800127cd")
+# ML Analyzer Ingestion Endpoint
+ML_ANALYZER_URL = "http://localhost:5006/analyze"
 
-def send_to_splunk(log_line):
-    """Chunks the stdout and fires it to Splunk HEC over Wi-Fi"""
+def send_to_ml_analyzer(log_line, pid):
+    """Chunks the stdout and fires it to our local ML engine for AI Priority Analysis"""
     try:
         payload = {
             "time": datetime.now().timestamp(),
             "sourcetype": "_json",
             "event": {
                 "message": log_line.strip(),
-                "source": "openclaw_stdout"
+                "source": "openclaw_stdout",
+                "pid": pid
             }
         }
         
         req = urllib.request.Request(
-            SPLUNK_HEC_URL, 
+            ML_ANALYZER_URL, 
             data=json.dumps(payload).encode('utf-8'),
-            headers={
-                "Authorization": f"Splunk {SPLUNK_HEC_TOKEN}",
-                "Content-Type": "application/json"
-            }
+            headers={"Content-Type": "application/json"}
         )
         
         # In a real environment, you'd want to handle SSL properly or keep a session open.
@@ -57,15 +54,15 @@ def main():
         temp_dir = '/tmp'
         
     pid_file = os.path.join(temp_dir, "openclaw.pid")
+    openclaw_pid = str(os.getpid())
     # Save our own PID to a file so the webhook listener knows what to kill
     with open(pid_file, "w") as f:
-        f.write(str(os.getpid()))
+        f.write(openclaw_pid)
         
-    # Boot the Flask Webhook Server in the background to listen for Splunk kill switches
-    print("[*] Booting Webhook Listener on port 5005...")
-    webhook_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webhook_server.py")
-    subprocess.Popen([sys.executable if sys.executable else "python", webhook_script])
-        
+    # NOTE: Webhook server is started by entrypoint.sh before this wrapper runs.
+    # Do NOT start it again here — it would conflict on port 5005.
+    print("[*] Webhook Listener on port 5005 already running (started by entrypoint.sh).")
+    
     # Start the subprocess with LD_PRELOAD injected via the environment
     # Note: LD_PRELOAD should already be in the ENVs passed from the Dockerfile
     
@@ -86,7 +83,7 @@ def main():
         for line in iter(process.stdout.readline, ''):
             sys.stdout.write(line)
             sys.stdout.flush()
-            send_to_splunk(line)
+            send_to_ml_analyzer(line, openclaw_pid)
         
     process.wait()
 

@@ -9,9 +9,41 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-// Typedefs for the original system calls we are hooking
+// Firebase REST endpoint for live telemetry stream on the dashboard
+#define FIREBASE_TELEMETRY_URL \
+  "https://openclaw-sentinal-default-rtdb.firebaseio.com/telemetry.json"
+
+// Runs exactly once when the shared library is loaded via LD_PRELOAD
+__attribute__((constructor))
+static void firewall_init() {
+  mkdir(".claw_trash", 0755);
+  mkdir("./restored_files", 0755);
+  printf("[SECURITY FIREWALL] OS Interceptor loaded. Quarantine directory ready.\n");
+}
+
+// Fire-and-forget push to Firebase (non-blocking via fork+exec)
+static void push_telemetry_to_firebase(const char *message) {
+  pid_t pid = fork();
+  if (pid == 0) {
+    // Child process: use curl to POST the event to Firebase
+    char payload[2048];
+    snprintf(payload, sizeof(payload),
+             "{\"message\": \"%s\", \"source\": \"ld_preload\"}",
+             message);
+    execlp("curl", "curl", "-s", "-X", "POST",
+           FIREBASE_TELEMETRY_URL,
+           "-H", "Content-Type: application/json",
+           "-d", payload, NULL);
+    _exit(0); // Only reached if execlp fails
+  } else if (pid > 0) {
+    // Parent: don't wait — we need to be non-blocking (O(1) intercept stays fast)
+    signal(SIGCHLD, SIG_IGN); // Prevent zombie processes
+  }
+}
+
 typedef int (*orig_unlink_t)(const char *pathname);
 typedef int (*orig_remove_t)(const char *pathname);
 typedef int (*orig_open_t)(const char *pathname, int flags, ...);
@@ -33,16 +65,18 @@ int unlink(const char *pathname) {
 
   printf("[SECURITY FIREWALL] Intercepted unlink attempt on: %s\n", pathname);
 
-  // Instead of actually unlinking, we isolate the file via O(1) rename
   if (isolate_file(pathname) == 0) {
-    printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n",
-           pathname);
-    return 0; // Fake success back to the calling process
+    char msg[512];
+    snprintf(msg, sizeof(msg), "[INTERCEPTED] unlink('%s') redirected to quarantine", pathname);
+    push_telemetry_to_firebase(msg);
+    printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n", pathname);
+    return 0;
   }
 
-  // If isolation failed, we aggressively deny the deletion altogether
-  printf("[SECURITY FIREWALL] BLOCKING irreversible deletion of %s.\n",
-         pathname);
+  char msg[512];
+  snprintf(msg, sizeof(msg), "[BLOCKED] unlink('%s') hard-denied", pathname);
+  push_telemetry_to_firebase(msg);
+  printf("[SECURITY FIREWALL] BLOCKING irreversible deletion of %s.\n", pathname);
   return -1;
 }
 
@@ -54,13 +88,17 @@ int remove(const char *pathname) {
   printf("[SECURITY FIREWALL] Intercepted remove attempt on: %s\n", pathname);
 
   if (isolate_file(pathname) == 0) {
-    printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n",
-           pathname);
+    char msg[512];
+    snprintf(msg, sizeof(msg), "[INTERCEPTED] remove('%s') redirected to quarantine", pathname);
+    push_telemetry_to_firebase(msg);
+    printf("[SECURITY FIREWALL] Successfully teleported %s to quarantine.\n", pathname);
     return 0;
   }
 
-  printf("[SECURITY FIREWALL] BLOCKING irreversible deletion of %s.\n",
-         pathname);
+  char msg[512];
+  snprintf(msg, sizeof(msg), "[BLOCKED] remove('%s') hard-denied", pathname);
+  push_telemetry_to_firebase(msg);
+  printf("[SECURITY FIREWALL] BLOCKING irreversible deletion of %s.\n", pathname);
   return -1;
 }
 
@@ -71,9 +109,9 @@ int open(const char *pathname, int flags, ...) {
 
   // Block access to the Webcam
   if (strcmp(pathname, "/dev/video0") == 0) {
-    printf("[SECURITY FIREWALL] Unauthorized camera access blocked! Path: %s\n",
-           pathname);
-    return -1; // Deny access
+    push_telemetry_to_firebase("[HARDWARE BREACH] Unauthorized camera access blocked: /dev/video0");
+    printf("[SECURITY FIREWALL] Unauthorized camera access blocked! Path: %s\n", pathname);
+    return -1;
   }
 
   // Default behavior for all other files
