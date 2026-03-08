@@ -21,7 +21,9 @@ We didn't just fix or fork an existing AI codebase. Because our firewall wraps O
    docker-compose up --build
    ```
 3. Watch the terminal as our C++ Hook intercepts AI anomalies!
-4. Launch the dashboard:
+4. We require vite for this next step.
+5. Launch the dashboard:
    ```bash
-   cd dashboard && npm run dev
+   cd dashboard && npm install
+   npm run dev
    ```
