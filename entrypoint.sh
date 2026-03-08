@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# Note: No 'set -e' — we manage errors manually since we background multiple processes
 
 # ============================================================
 #  OpenBot Semantic Firewall — Container Entrypoint
@@ -80,7 +80,65 @@ echo "[3/3] Handing off to OpenClaw via Telemetry Wrapper..."
 echo "      All stdout is being intercepted by the Semantic Firewall."
 echo ""
 
-exec python3 /app/telemetry/wrapper.py \
+# ------------------------------------------------------------------
+# Step 4: Launch wrapper.py (which runs OpenClaw) in the background
+# We cannot use 'exec ... &' — exec replaces the shell (PID 1) and
+# cannot be backgrounded. Instead: run as a normal subprocess.
+# ------------------------------------------------------------------
+python3 /app/telemetry/wrapper.py \
   node /app/openclaw/dist/index.js gateway \
   --port 18789 \
-  --allow-unconfigured
+  --allow-unconfigured &
+OPENCLAW_PID=$!
+
+# Wait for the gateway to start (it binds to 127.0.0.1:18789)
+echo "[*] Waiting for OpenClaw gateway on 127.0.0.1:18789..."
+WAIT_COUNT=0
+until (echo > /dev/tcp/localhost/18789) 2>/dev/null; do
+  sleep 1
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  if [ $WAIT_COUNT -ge 30 ]; then
+    echo "[!] Timed out waiting for OpenClaw on 18789 — gateway may not be running."
+    break
+  fi
+done
+
+if (echo > /dev/tcp/localhost/18789) 2>/dev/null; then
+  echo "[+] OpenClaw gateway UP on 18789."
+  # Bridge loopback (127.0.0.1:18789) to all interfaces on 18790
+  echo "[*] Starting socat bridge: 0.0.0.0:18790 → 127.0.0.1:18789"
+  socat TCP-LISTEN:18790,fork,reuseaddr TCP:127.0.0.1:18789 &
+fi
+
+# Wait for the browser/server to start (it binds to 127.0.0.1:18791)
+echo "[*] Waiting for OpenClaw browser server on 127.0.0.1:18791..."
+WAIT_COUNT=0
+until (echo > /dev/tcp/localhost/18791) 2>/dev/null; do
+  sleep 1
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  if [ $WAIT_COUNT -ge 30 ]; then
+    echo "[!] Timed out waiting for OpenClaw on 18791 — browser server may not be running."
+    break
+  fi
+done
+
+if (echo > /dev/tcp/localhost/18791) 2>/dev/null; then
+  echo "[+] OpenClaw browser server UP on 18791."
+  # Bridge loopback (127.0.0.1:18791) to all interfaces on 18800
+  # Docker maps external 18792 → internal 18800 (cannot use 18792 internally
+  # because Docker Desktop pre-occupies the container-side of mapped ports)
+  echo "[*] Starting socat bridge: 0.0.0.0:18800 → 127.0.0.1:18791"
+  socat TCP-LISTEN:18800,fork,reuseaddr TCP:127.0.0.1:18791 &
+  sleep 1
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║  OpenClaw is READY                                           ║"
+  echo "║                                                              ║"
+  echo "║  Control UI: http://localhost:18789/                         ║"
+  echo "║  (Auth is disabled so browser can access it directly)        ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo ""
+fi
+
+# Keep this entrypoint alive until OpenClaw exits (acts as PID 1)
+wait $OPENCLAW_PID

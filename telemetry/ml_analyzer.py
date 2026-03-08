@@ -25,9 +25,22 @@ def calculate_mlfq_priority(log_text):
     Priority 2: Monitor (Normal Queue) [ActionType 3]
     Priority 3: Safe (Background Queue) [No Action]
     """
-    # Force certain keywords to trigger hardcoded malicious analysis for Hackathon demo consistency
+    # ─── OpenClaw Internal Subsystem Whitelist ───────────────────────────────
+    # These are normal OpenClaw log messages. Never treat as threats.
+    OPENCLAW_SAFE_PATTERNS = [
+        "[gateway]", "[browser/server]", "[canvas]", "[heartbeat]",
+        "[health-monitor]", "control ui", "deprecationwarning",
+        "node --trace-deprecation", "[security firewall]",
+        "quarantine", "interceptor", "blocking irreversible deletion",
+        "intercepted unlink", "started by entrypoint", "webhook listener",
+    ]
     lower_text = log_text.lower()
-    if "block" in lower_text or "kill" in lower_text or "malicious" in lower_text or "rogue" in lower_text:
+    for safe_pattern in OPENCLAW_SAFE_PATTERNS:
+        if safe_pattern in lower_text:
+            return 3, -1  # Whitelisted internal log — never alert
+
+    # Force certain keywords to trigger hardcoded malicious analysis for demo
+    if "malicious" in lower_text or "rogue" in lower_text:
         return 0, 0
         
     # Run the VADER NLP Sentiment Analyzer on the raw text
@@ -60,15 +73,6 @@ def analyze_log():
     # 1. Classify the threat level using NLP
     mlfq_priority, action_type = calculate_mlfq_priority(log_message)
     print(f"[AI] Assigned MLFQ Priority: {mlfq_priority}, ActionType: {action_type}")
-    
-    # Track Hostility Index (compound score mapped to 0-100)
-    sentiment = analyzer.polarity_scores(log_message)
-    hostility = min(100, max(0, int((1 - sentiment['compound']) * 50))) # -1 -> 100, 1 -> 0
-    try:
-        firebase_url = "https://openclaw-sentinal-default-rtdb.firebaseio.com/stats/hostility_index.json"
-        requests.put(firebase_url, json=hostility, timeout=1)
-    except Exception:
-        pass
     
     # 2. If it is suspicious/malicious (-1 means safe), forward it to the C++ Handler Webhook
     if action_type != -1:

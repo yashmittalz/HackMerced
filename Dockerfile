@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     curl \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js v22 — OpenClaw hard-requires >=22.12.0 at runtime
@@ -24,6 +25,10 @@ RUN pip3 install Flask requests vaderSentiment
 RUN git clone https://github.com/openclaw/openclaw.git /app/openclaw
 RUN cd /app/openclaw && npm install -g pnpm && pnpm install && npm run build
 
+# Pre-build the Control UI (Vite app) so it's available at runtime.
+# OpenClaw tries to build ui/ at runtime but fails — pre-building avoids that.
+RUN cd /app/openclaw/ui && npm install && npm run build
+
 # 2. Copy OUR custom security layer into the container
 COPY ./interceptor /app/interceptor
 COPY ./telemetry /app/telemetry
@@ -33,13 +38,11 @@ RUN cd /app/interceptor && make
 
 # 4. Copy and register the startup orchestration entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 WORKDIR /app
 
-
-CMD ["python3", "/app/telemetry/wrapper.py", "node", "/app/openclaw/dist/index.js", "gateway", "--port", "18789", "--allow-unconfigured"]
-# line before added back from before the sour problem  entrypoint.sh handles ordered startup:
+# entrypoint.sh handles ordered startup:
 #   1. ML Analyzer (:5006) + health check
 #   2. Webhook Server (:5005) + health check
 #   3. First-run detection → OpenClaw onboarding or direct boot
