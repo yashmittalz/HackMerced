@@ -48,7 +48,15 @@ def main():
     
     import tempfile
     
-    pid_file = os.path.join(tempfile.gettempdir(), "openclaw.pid")
+    # In some minimalistic docker containers, standard temp directories may not exist
+    try:
+        temp_dir = tempfile.gettempdir()
+    except FileNotFoundError:
+        os.makedirs('/tmp', exist_ok=True)
+        tempfile.tempdir = '/tmp'
+        temp_dir = '/tmp'
+        
+    pid_file = os.path.join(temp_dir, "openclaw.pid")
     # Save our own PID to a file so the webhook listener knows what to kill
     with open(pid_file, "w") as f:
         f.write(str(os.getpid()))

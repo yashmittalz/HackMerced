@@ -16,7 +16,15 @@ def handle_alert():
     print(f"[*] Payload: {data}")
     
     import tempfile
-    pid_file = os.path.join(tempfile.gettempdir(), "openclaw.pid")
+    
+    try:
+        temp_dir = tempfile.gettempdir()
+    except FileNotFoundError:
+        os.makedirs('/tmp', exist_ok=True)
+        tempfile.tempdir = '/tmp'
+        temp_dir = '/tmp'
+        
+    pid_file = os.path.join(temp_dir, "openclaw.pid")
     
     # We retrieve the PID of the OpenClaw wrapper we saved earlier
     try:
@@ -60,4 +68,5 @@ def handle_alert():
 
 if __name__ == '__main__':
     # Run heavily isolated on a non-standard port so it doesn't conflict with Mac AirPlay receiver
+    # Must bind to 0.0.0.0 so Docker can expose it to the host machine
     app.run(host='0.0.0.0', port=5005)
