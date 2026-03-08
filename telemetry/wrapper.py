@@ -69,13 +69,19 @@ def main():
     # On Windows, we need to pass the arguments as a flat string if shell=True is used,
     # or keep it as a list but allow `subprocess` to find the executable.
     cmd_to_run = command if os.name != 'nt' else " ".join(command)
+    
+    # Explicitly inject the C++ Security Hook here, nowhere else
+    child_env = os.environ.copy()
+    child_env["LD_PRELOAD"] = "/app/interceptor/hook.so"
+
     process = subprocess.Popen(
         cmd_to_run,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        shell=(os.name == 'nt')
+        shell=(os.name == 'nt'),
+        env=child_env
     )
     
     # Continuously read and tee the output

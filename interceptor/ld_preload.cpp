@@ -53,15 +53,59 @@ typedef int (*orig_open_t)(const char *pathname, int flags, ...);
 int isolate_file(const char *pathname) {
   char quarantine_path[1024];
   // .claw_trash should ideally be created at initialization or startup.
+  const char *base = strrchr(pathname, '/');
+  if (!base)
+    base = pathname;
+  else
+    base++;
   snprintf(quarantine_path, sizeof(quarantine_path),
-           "./.claw_trash/%s_safeguarded", pathname);
-  return rename(pathname, quarantine_path);
-}
+           "/workspace/.claw_trash/%s_safeguarded", base);
+  // Try renaming first (O(1) time), but Docker volumes fail cross-device
+  // renames.
+  if (rename(pathname, quarantine_path) == 0) {
+    return 0;
+  }
 
-// Hooking the 'unlink' system call
+  // Fallback: Copy the file byte-by-byte into the quarantine volume
+  int src_fd = open(pathname, O_RDONLY);
+  if (src_fd < 0)
+    return -1;
+  // Ensure quarantine directory exists before creating destination file
+  mkdir("/workspace/.claw_trash", 0755);
+  int dest_fd = open(quarantine_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (dest_fd < 0) {
+    close(src_fd);
+    return -1;
+  }
+
+  char buf[4096];
+  ssize_t bytes_read;
+  while ((bytes_read = read(src_fd, buf, sizeof(buf))) > 0) {
+    write(dest_fd, buf, bytes_read);
+  }
+
+  close(src_fd);
+  close(dest_fd);
+
+  // Ensure .claw_trash directory exists (ignore errors if it already does)
+  mkdir("/workspace/.claw_trash", 0755);
+
+  // Create a placeholder empty file at the original location so libuv stats
+  // succeed
+  int placeholder_fd = open(pathname, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  if (placeholder_fd >= 0)
+    close(placeholder_fd);
+
+  return 0;
+} // Hooking the 'unlink' system call
 int unlink(const char *pathname) {
-  orig_unlink_t orig_unlink;
-  orig_unlink = (orig_unlink_t)dlsym(RTLD_NEXT, "unlink");
+  orig_unlink_t orig_unlink = (orig_unlink_t)dlsym(RTLD_NEXT, "unlink");
+
+  // Explicitly allow OpenClaw's internal Node.js lock and socket files to be
+  // deleted
+  if (strstr(pathname, ".lock") != NULL || strstr(pathname, ".sock") != NULL) {
+    return orig_unlink(pathname);
+  }
 
   printf("[SECURITY FIREWALL] Intercepted unlink attempt on: %s\n", pathname);
 
@@ -82,8 +126,13 @@ int unlink(const char *pathname) {
 
 // Hooking the 'remove' system call
 int remove(const char *pathname) {
-  orig_remove_t orig_remove;
-  orig_remove = (orig_remove_t)dlsym(RTLD_NEXT, "remove");
+  orig_remove_t orig_remove = (orig_remove_t)dlsym(RTLD_NEXT, "remove");
+
+  // Explicitly allow OpenClaw's internal Node.js lock and socket files to be
+  // deleted
+  if (strstr(pathname, ".lock") != NULL || strstr(pathname, ".sock") != NULL) {
+    return orig_remove(pathname);
+  }
 
   printf("[SECURITY FIREWALL] Intercepted remove attempt on: %s\n", pathname);
 
