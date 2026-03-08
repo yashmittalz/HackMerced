@@ -7,29 +7,26 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-# Splunk Cloud HTTP Event Collector (HEC) Configuration
-SPLUNK_HEC_URL = os.environ.get("SPLUNK_HEC_URL", "https://your-splunk-cloud.com:8088/services/collector/event")
-SPLUNK_HEC_TOKEN = os.environ.get("SPLUNK_HEC_TOKEN", "YOUR_SPLUNK_TOKEN")
+# ML Analyzer Ingestion Endpoint
+ML_ANALYZER_URL = "http://localhost:5006/analyze"
 
-def send_to_splunk(log_line):
-    """Chunks the stdout and fires it to Splunk HEC over Wi-Fi"""
+def send_to_ml_analyzer(log_line, pid):
+    """Chunks the stdout and fires it to our local ML engine for AI Priority Analysis"""
     try:
         payload = {
             "time": datetime.now().timestamp(),
             "sourcetype": "_json",
             "event": {
                 "message": log_line.strip(),
-                "source": "openclaw_stdout"
+                "source": "openclaw_stdout",
+                "pid": pid
             }
         }
         
         req = urllib.request.Request(
-            SPLUNK_HEC_URL, 
+            ML_ANALYZER_URL, 
             data=json.dumps(payload).encode('utf-8'),
-            headers={
-                "Authorization": f"Splunk {SPLUNK_HEC_TOKEN}",
-                "Content-Type": "application/json"
-            }
+            headers={"Content-Type": "application/json"}
         )
         
         # In a real environment, you'd want to handle SSL properly or keep a session open.
@@ -46,29 +43,47 @@ def main():
     command = sys.argv[1:]
     print(f"[*] Starting Semantic Firewall Telemetry Wrapper around: {' '.join(command)}")
     
+    import tempfile
+    
+    # In some minimalistic docker containers, standard temp directories may not exist
+    try:
+        temp_dir = tempfile.gettempdir()
+    except FileNotFoundError:
+        os.makedirs('/tmp', exist_ok=True)
+        tempfile.tempdir = '/tmp'
+        temp_dir = '/tmp'
+        
+    pid_file = os.path.join(temp_dir, "openclaw.pid")
+    openclaw_pid = str(os.getpid())
     # Save our own PID to a file so the webhook listener knows what to kill
-    with open("/tmp/openclaw.pid", "w") as f:
-        f.write(str(os.getpid()))
+    with open(pid_file, "w") as f:
+        f.write(openclaw_pid)
         
-    # Boot the Flask Webhook Server in the background to listen for Splunk kill switches
-    print("[*] Booting Webhook Listener on port 5005...")
-    subprocess.Popen(["python3", "/app/telemetry/webhook_server.py"])
-        
+    # NOTE: Webhook server is started by entrypoint.sh before this wrapper runs.
+    # Do NOT start it again here — it would conflict on port 5005.
+    print("[*] Webhook Listener on port 5005 already running (started by entrypoint.sh).")
+    
     # Start the subprocess with LD_PRELOAD injected via the environment
     # Note: LD_PRELOAD should already be in the ENVs passed from the Dockerfile
+    
+    # On Windows, we need to pass the arguments as a flat string if shell=True is used,
+    # or keep it as a list but allow `subprocess` to find the executable.
+    cmd_to_run = command if os.name != 'nt' else " ".join(command)
     process = subprocess.Popen(
-        command,
+        cmd_to_run,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        shell=(os.name == 'nt')
     )
     
     # Continuously read and tee the output
-    for line in iter(process.stdout.readline, ''):
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        send_to_splunk(line)
+    if process.stdout:
+        for line in iter(process.stdout.readline, ''):
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            send_to_ml_analyzer(line, openclaw_pid)
         
     process.wait()
 

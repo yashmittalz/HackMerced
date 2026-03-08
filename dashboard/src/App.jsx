@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, limitToLast, query } from "firebase/database";
 
@@ -60,6 +60,17 @@ function App() {
                     ...val
                 })).reverse();
                 setThreats(threatList);
+            }
+        });
+
+        // 2. Listen for live telemetry logs pushed by ld_preload.cpp
+        const telemetryRef = ref(db, 'telemetry');
+        onValue(telemetryRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Firebase stores the log entries as an array; grab the 20 most recent
+                const entries = Object.values(data).slice(-20).map(e => e.message || JSON.stringify(e));
+                setThoughts(entries.reverse()); // newest first
             }
         });
     }, []);
