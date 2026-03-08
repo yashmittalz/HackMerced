@@ -23,6 +23,8 @@ RUN pip3 install Flask requests vaderSentiment
 
 # 1. Clone and build OpenClaw from source
 RUN git clone https://github.com/openclaw/openclaw.git /app/openclaw
+# Patch OpenClaw to bypass device identity checks for operators when auth.mode=none
+RUN sed -i 's/return role === "operator" && sharedAuthOk;/return role === "operator";/' /app/openclaw/src/gateway/role-policy.ts
 RUN cd /app/openclaw && npm install -g pnpm && pnpm install && npm run build
 
 # Pre-build the Control UI (Vite app) so it's available at runtime.

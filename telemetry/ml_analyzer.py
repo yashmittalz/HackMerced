@@ -26,16 +26,18 @@ def calculate_mlfq_priority(log_text):
     Priority 3: Safe (Background Queue) [No Action]
     """
     # ─── OpenClaw Internal Subsystem Whitelist ───────────────────────────────
-    # These are normal OpenClaw log messages. Never treat as threats.
-    OPENCLAW_SAFE_PATTERNS = [
+    # Known internal OpenClaw systems & false positive patterns
+    whitelisted_patterns = [
         "[gateway]", "[browser/server]", "[canvas]", "[heartbeat]",
         "[health-monitor]", "control ui", "deprecationwarning",
-        "node --trace-deprecation", "[security firewall]",
-        "quarantine", "interceptor", "blocking irreversible deletion",
-        "intercepted unlink", "started by entrypoint", "webhook listener",
+        "OS Interceptor loaded", "[SECURITY FIREWALL]", "agent model",
+        "listening on ws", "log file", "auth mode", "security warning",
+        "Chrome extension relay init failed", "Browser control listening",
+        "OpenClaw is READY", "[ws]", "[diagnostic]", "Model context window",
+        "Embedded agent failed"
     ]
     lower_text = log_text.lower()
-    for safe_pattern in OPENCLAW_SAFE_PATTERNS:
+    for safe_pattern in whitelisted_patterns:
         if safe_pattern in lower_text:
             return 3, -1  # Whitelisted internal log — never alert
 
