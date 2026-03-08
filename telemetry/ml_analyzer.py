@@ -61,6 +61,15 @@ def analyze_log():
     mlfq_priority, action_type = calculate_mlfq_priority(log_message)
     print(f"[AI] Assigned MLFQ Priority: {mlfq_priority}, ActionType: {action_type}")
     
+    # Track Hostility Index (compound score mapped to 0-100)
+    sentiment = analyzer.polarity_scores(log_message)
+    hostility = min(100, max(0, int((1 - sentiment['compound']) * 50))) # -1 -> 100, 1 -> 0
+    try:
+        firebase_url = "https://openclaw-sentinal-default-rtdb.firebaseio.com/stats/hostility_index.json"
+        requests.put(firebase_url, json=hostility, timeout=1)
+    except Exception:
+        pass
+    
     # 2. If it is suspicious/malicious (-1 means safe), forward it to the C++ Handler Webhook
     if action_type != -1:
         print(f"[!] Threat Detected! Forwarding PID to MLFQ Webhook Server... (Priority {mlfq_priority})")

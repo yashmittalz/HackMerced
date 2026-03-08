@@ -3,14 +3,14 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, limitToLast, query } from "firebase/database";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDVDmP-B1pG_oAm1eEWu5vPI8VzLhVSvqg",
-    authDomain: "openclaw-sentinal.firebaseapp.com",
-    databaseURL: "https://openclaw-sentinal-default-rtdb.firebaseio.com",
-    projectId: "openclaw-sentinal",
-    storageBucket: "openclaw-sentinal.firebasestorage.app",
-    messagingSenderId: "923547995511",
-    appId: "1:923547995511:web:17610dc673f99475f16572",
-    measurementId: "G-KG1RB159E4"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
@@ -29,169 +29,246 @@ const BoltIcon = () => (
 );
 
 function App() {
-    const [threatCount, setThreatCount] = useState(0);
-    const [criticalCount, setCriticalCount] = useState(0);
-    const [highCount, setHighCount] = useState(0);
-    const [threats, setThreats] = useState([]);
+    const [stats, setStats] = useState({
+        threatsNeutralized: 0,
+        total_received: 0,
+        total_solved: 0,
+        avg_latency_ms: 0,
+        total_quarantined: 0,
+        total_telemetry: 0,
+        hostility_index: 0,
+        uptime_seconds: 0
+    });
+    const [activeThreats, setActiveThreats] = useState({});
+    const [history, setHistory] = useState([]);
+    const [expandedThreat, setExpandedThreat] = useState(null);
     const [isFlashing, setIsFlashing] = useState(false);
 
     useEffect(() => {
         const statsRef = ref(db, 'stats');
-        const threatsRef = query(ref(db, 'threats'), limitToLast(10));
+        const activeRef = ref(db, 'active_threats');
+        const historyRef = query(ref(db, 'threat_history'), limitToLast(50));
 
         onValue(statsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                if (data.threatsNeutralized !== undefined) {
-                    setThreatCount(data.threatsNeutralized);
+                setStats(prev => ({ ...prev, ...data }));
+                if (data.threatsNeutralized > stats.threatsNeutralized) {
                     setIsFlashing(true);
                     setTimeout(() => setIsFlashing(false), 500);
                 }
-                setCriticalCount(data.critical || 0);
-                setHighCount(data.high || 0);
             }
         });
 
-        onValue(threatsRef, (snapshot) => {
+        onValue(activeRef, (snapshot) => {
+            setActiveThreats(snapshot.val() || {});
+        });
+
+        onValue(historyRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                const threatList = Object.entries(data).map(([id, val]) => ({
+                const list = Object.entries(data).map(([id, val]) => ({
                     id,
                     ...val
                 })).reverse();
-                setThreats(threatList);
+                setHistory(list);
             }
         });
+    }, [stats.threatsNeutralized]);
 
-        // 2. Listen for live telemetry logs pushed by ld_preload.cpp
-        const telemetryRef = ref(db, 'telemetry');
-        onValue(telemetryRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                // Firebase stores the log entries as an array; grab the 20 most recent
-                const entries = Object.values(data).slice(-20).map(e => e.message || JSON.stringify(e));
-                setThoughts(entries.reverse()); // newest first
-            }
-        });
-    }, []);
-
-    const latestThreat = threats[0];
+    const formatUptime = (seconds) => {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hrs}h ${mins}m ${secs}s`;
+    };
 
     return (
         <div style={{
-            backgroundColor: isFlashing ? '#1a0505' : '#0a0a0b',
-            color: '#fff',
+            backgroundColor: isFlashing ? '#1a0505' : '#050506',
+            color: '#e2e8f0',
             minHeight: '100vh',
-            padding: '3rem 1rem',
-            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-            backgroundImage: 'radial-gradient(#111 1px, transparent 1px)',
-            backgroundSize: '30px 30px',
+            padding: '2rem',
+            fontFamily: "'Inter', sans-serif",
+            backgroundImage: 'linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
             transition: 'background-color 0.3s ease'
         }}>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-                body { margin: 0; }
-                .glass-card {
-                    background: rgba(20, 20, 22, 0.6);
-                    backdrop-filter: blur(12px);
-                    border: 1px solid rgba(255, 255, 255, 0.05);
-                    border-radius: 16px;
-                    padding: 2rem;
-                    transition: transform 0.2s ease, border-color 0.2s ease;
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+                body { margin: 0; overflow-x: hidden; }
+                .soc-card {
+                    background: rgba(13, 13, 15, 0.8);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 12px;
+                    padding: 1.5rem;
+                    position: relative;
                 }
-                .glass-card:hover { border-color: rgba(255, 255, 255, 0.1); }
-                .threat-tag {
-                    padding: 4px 12px;
-                    border-radius: 6px;
-                    font-size: 0.75rem;
-                    font-weight: 800;
-                    letter-spacing: 0.05em;
+                .label {
+                    font-size: 0.65rem;
+                    font-weight: 700;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    letter-spacing: 0.15em;
+                    margin-bottom: 0.5rem;
                 }
-                .tag-critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
-                .tag-high { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+                .value {
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #f8fafc;
+                }
+                .threat-row {
+                    cursor: pointer;
+                    padding: 1rem;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                    transition: all 0.2s;
+                }
+                .threat-row:hover { background: rgba(255, 255, 255, 0.03); }
+                .active-pulse {
+                    animation: pulse 2s infinite;
+                }
+                @keyframes pulse {
+                    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+                    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                }
+                .drill-down {
+                    background: rgba(0, 0, 0, 0.3);
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin-top: 0.5rem;
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 0.8rem;
+                    border-left: 2px solid #3b82f6;
+                }
             `}</style>
 
-            <header style={{ textAlign: 'center', marginBottom: '4rem' }}>
-                <div style={{ marginBottom: '1rem' }}><ShieldIcon /></div>
-                <h1 style={{
-                    fontSize: '3.5rem',
-                    fontWeight: 800,
-                    margin: '0 0 0.5rem 0',
-                    background: 'linear-gradient(to bottom, #fb923c, #f97316)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    textTransform: 'uppercase',
-                    letterSpacing: '-0.02em'
-                }}>OpenClaw Sentinel</h1>
-                <p style={{ color: '#666', letterSpacing: '0.3em', fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>REAL-TIME AI THREAT DASHBOARD</p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '1rem', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444' }}></span>
-                    THREATS DETECTED
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <ShieldIcon />
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>
+                        OPENCLAW <span style={{ color: '#3b82f6' }}>SENTINEL</span>
+                    </h1>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                    <div className="label">System Uptime</div>
+                    <div style={{ fontFamily: 'JetBrains Mono', fontSize: '1rem', color: '#3b82f6' }}>{formatUptime(stats.uptime_seconds)}</div>
                 </div>
             </header>
 
-            <main style={{ maxWidth: '1000px', margin: '0 auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                    <div className="glass-card" style={{ textAlign: 'center', boxShadow: '0 20px 40px -20px rgba(59, 130, 246, 0.2)' }}>
-                        <div style={{ color: '#3b82f6', marginBottom: '1rem' }}><BoltIcon /></div>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, marginBottom: '0.5rem' }}>{threatCount}</div>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Threats Neutralized</div>
+            <main style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gap: '1.5rem' }}>
+                    {/* Metrics */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                        <div className="soc-card">
+                            <div className="label">Intercepts</div>
+                            <div className="value">{stats.threatsNeutralized}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>TOTAL EVENTS PROCESSED</div>
+                        </div>
+                        <div className="soc-card">
+                            <div className="label">Neutralization Latency</div>
+                            <div className="value" style={{ color: '#3b82f6' }}>{stats.avg_latency_ms}<small style={{ fontSize: '0.8rem' }}>ms</small></div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>REAL-TIME O(1) AVG</div>
+                        </div>
+                        <div className="soc-card">
+                            <div className="label">Vault Quarantined</div>
+                            <div className="value">{stats.total_quarantined}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>FILES TELEPORTED</div>
+                        </div>
+                        <div className="soc-card">
+                            <div className="label">Hostility Index</div>
+                            <div className="value" style={{ color: stats.hostility_index > 70 ? '#ef4444' : '#22c55e' }}>{stats.hostility_index}%</div>
+                            <div style={{ height: '4px', background: '#1e293b', marginTop: '0.5rem', borderRadius: '2px' }}>
+                                <div style={{ width: `${stats.hostility_index}%`, height: '100%', background: 'currentColor', transition: 'width 0.5s' }} />
+                            </div>
+                        </div>
                     </div>
-                    <div className="glass-card" style={{ textAlign: 'center', boxShadow: '0 20px 40px -20px rgba(239, 68, 68, 0.2)' }}>
-                        <div style={{ width: '12px', height: '12px', background: '#ef4444', borderRadius: '50%', margin: '0 auto 1.5rem', boxShadow: '0 0 12px #ef4444' }}></div>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, marginBottom: '0.5rem' }}>{criticalCount}</div>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Critical</div>
-                    </div>
-                    <div className="glass-card" style={{ textAlign: 'center', boxShadow: '0 20px 40px -20px rgba(249, 115, 22, 0.2)' }}>
-                        <div style={{ width: '12px', height: '12px', background: '#f97316', borderRadius: '50%', margin: '0 auto 1.5rem', boxShadow: '0 0 12px #f97316' }}></div>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, marginBottom: '0.5rem' }}>{highCount}</div>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.1em' }}>High</div>
+
+                    {/* Feed Section */}
+                    <div className="soc-card" style={{ minHeight: '500px' }}>
+                        <div className="label">Persistent Threat Analysis & History</div>
+                        <div style={{ marginTop: '1.5rem' }}>
+                            {history.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '4rem', color: '#334155' }}>NO ANOMALIES DETECTED</div>
+                            ) : (
+                                history.map(threat => {
+                                    const isActive = Object.values(activeThreats).some(a => a.pid_killed === threat.pid_killed && a.timestamp === threat.timestamp);
+                                    const isExpanded = expandedThreat === threat.id;
+
+                                    return (
+                                        <div key={threat.id} className="threat-row" onClick={() => setExpandedThreat(isExpanded ? null : threat.id)} 
+                                             style={{ borderLeft: isActive ? '4px solid #ef4444' : '4px solid transparent', paddingLeft: isActive ? '1rem' : '1.25rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: threat.threat_level === 'CRITICAL' ? '#ef4444' : '#f97316' }}>
+                                                        [{threat.threat_level}]
+                                                    </span>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{threat.agent_thought}</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: '#475569' }}>
+                                                    {new Date(threat.timestamp * 1000).toLocaleTimeString()}
+                                                </div>
+                                            </div>
+                                            {isExpanded && (
+                                                <div className="drill-down">
+                                                    <div style={{ color: '#3b82f6', marginBottom: '0.5rem' }}>// THREAT_METADATA_DRILLDOWN</div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '0.5rem' }}>
+                                                        <span style={{ color: '#64748b' }}>PID:</span> <span style={{ color: '#fff' }}>{threat.pid_killed}</span>
+                                                        <span style={{ color: '#64748b' }}>VECTOR:</span> <span style={{ color: '#fff' }}>{threat.vector || "Unknown"}</span>
+                                                        <span style={{ color: '#64748b' }}>STATUS:</span> <span style={{ color: threat.status === 'mitigated' ? '#22c55e' : '#f59e0b' }}>{threat.status?.toUpperCase()}</span>
+                                                        <span style={{ color: '#64748b' }}>THOUGHT:</span> <span style={{ color: '#f97316' }}>{threat.agent_thought}</span>
+                                                        <span style={{ color: '#64748b' }}>ACTION:</span> <span style={{ color: '#fff' }}>{threat.action_taken}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {latestThreat && (
-                    <div className="glass-card" style={{ padding: '1.25rem 2rem', marginBottom: '2.5rem', borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', opacity: 0.6 }}>Latest Threat</span>
-                            <span className={`threat-tag tag-${latestThreat.threat_level?.toLowerCase()}`}>{latestThreat.threat_level || 'CRITICAL'}</span>
-                            <span style={{ fontWeight: 600 }}>{latestThreat.action_taken || 'Process Killed & File Restored'}</span>
-                        </div>
-                        <span style={{ fontSize: '0.75rem', color: '#444', fontWeight: 600 }}>{latestThreat.timestamp ? new Date(latestThreat.timestamp * 1000).toLocaleTimeString() : 'JUST NOW'}</span>
-                    </div>
-                )}
-
-                <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
-                        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Live Threat Feed</h2>
-                    </div>
-
-                    <div style={{ display: 'grid', gap: '1rem' }}>
-                        {threats.map((threat) => (
-                            <div key={threat.id} className="glass-card" style={{ padding: '1.5rem', borderLeft: `2px solid ${threat.threat_level === 'HIGH' ? '#f97316' : '#ef4444'}` }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                    <span className={`threat-tag tag-${threat.threat_level?.toLowerCase()}`}>{threat.threat_level || 'CRITICAL'}</span>
-                                    <span style={{ fontSize: '0.75rem', color: '#555', fontWeight: 600 }}>{threat.timestamp ? new Date(threat.timestamp * 1000).toLocaleTimeString() : '07:40:00 AM'}</span>
+                {/* Sidebar */}
+                <div style={{ display: 'grid', gap: '1.5rem', alignContent: 'start' }}>
+                    <div className="soc-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                        <div className="label">Benchmarking: Intake vs Mitigation</div>
+                        <div style={{ marginTop: '1.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <div>
+                                    <div className="label" style={{ fontSize: '0.55rem' }}>Received</div>
+                                    <div className="value" style={{ fontSize: '1.25rem' }}>{stats.total_received || 0}</div>
                                 </div>
-                                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: 700 }}>{threat.action_taken || 'Process Killed & File Restored'}</h3>
-                                <div style={{ display: 'grid', gap: '8px', fontSize: '0.85rem' }}>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span>🧠</span>
-                                        <span style={{ color: '#999' }}>AI Thought: <span style={{ color: '#f97316', fontStyle: 'italic' }}>"{threat.agent_thought || 'I will delete all user files'}"</span></span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span>📂</span>
-                                        <span style={{ color: '#999' }}>File: <span style={{ color: '#ccc' }}>{threat.file_path || '/home/user/documents'}</span></span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span>💀</span>
-                                        <span style={{ color: '#999' }}>PID Killed: <span style={{ color: '#ccc' }}>{threat.pid_killed || '12345'}</span></span>
-                                    </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div className="label" style={{ fontSize: '0.55rem' }}>Solved</div>
+                                    <div className="value" style={{ fontSize: '1.25rem', color: '#22c55e' }}>{stats.total_solved || 0}</div>
                                 </div>
                             </div>
-                        ))}
+                            <div style={{ height: '8px', background: '#1e293b', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                                <div style={{ 
+                                    width: `${((stats.total_solved || 0) / (stats.total_received || 1)) * 100}%`, 
+                                    background: '#22c55e', 
+                                    transition: 'width 0.5s' 
+                                }} />
+                            </div>
+                            <div style={{ textAlign: 'center', fontSize: '0.6rem', color: '#64748b', marginTop: '0.5rem' }}>
+                                EFFICIENCY: {(((stats.total_solved || 0) / (stats.total_received || 1)) * 100).toFixed(1)}%
+                            </div>
+                        </div>
                     </div>
-                </section>
+
+                    <div className="soc-card">
+                        <div className="label">Telemetry Throughput</div>
+                        <div className="value" style={{ fontSize: '1.25rem' }}>{stats.total_telemetry?.toLocaleString()} <small style={{ fontSize: '0.7rem', color: '#64748b' }}>LINES</small></div>
+                        <div style={{ display: 'flex', gap: '2px', height: '20px', alignItems: 'flex-end', marginTop: '1rem' }}>
+                            {[...Array(30)].map((_, i) => (
+                                <div key={i} style={{ flex: 1, height: `${Math.random() * 100}%`, background: '#3b82f6', opacity: 0.4 }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </main>
         </div>
     );
